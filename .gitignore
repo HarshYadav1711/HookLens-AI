@@ -16,6 +16,9 @@ frontend/.next/
 backend/.env
 frontend/.env.local
 
+# Runtime data (sessions, audio, checkpoints)
+backend/data/
+
 # OS / IDE
 .DS_Store
 Thumbs.db

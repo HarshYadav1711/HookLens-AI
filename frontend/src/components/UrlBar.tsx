@@ -7,6 +7,7 @@ interface UrlBarProps {
   onInstagramChange: (value: string) => void;
   onAnalyze: () => void;
   loading: boolean;
+  loadingLabel?: string;
   disabled: boolean;
 }
 
@@ -17,6 +18,7 @@ export function UrlBar({
   onInstagramChange,
   onAnalyze,
   loading,
+  loadingLabel = "Analyzing…",
   disabled,
 }: UrlBarProps) {
   const canSubmit =
@@ -24,6 +26,9 @@ export function UrlBar({
     !disabled &&
     youtubeUrl.trim().length > 0 &&
     instagramUrl.trim().length > 0;
+
+  const buttonClassName =
+    "shrink-0 rounded-lg bg-accent px-5 py-2.5 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40";
 
   return (
     <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
@@ -37,6 +42,7 @@ export function UrlBar({
           onChange={(e) => onYoutubeChange(e.target.value)}
           placeholder="https://www.youtube.com/watch?v=..."
           disabled={loading}
+          autoComplete="off"
           className="w-full rounded-lg border border-[var(--border)] bg-[var(--card)] px-3 py-2.5 text-sm placeholder:text-[var(--muted)]/60 focus:outline-none focus:ring-2 focus:ring-accent/40 disabled:opacity-50"
         />
       </label>
@@ -50,6 +56,7 @@ export function UrlBar({
           onChange={(e) => onInstagramChange(e.target.value)}
           placeholder="https://www.instagram.com/reel/..."
           disabled={loading}
+          autoComplete="off"
           className="w-full rounded-lg border border-[var(--border)] bg-[var(--card)] px-3 py-2.5 text-sm placeholder:text-[var(--muted)]/60 focus:outline-none focus:ring-2 focus:ring-accent/40 disabled:opacity-50"
         />
       </label>
@@ -57,9 +64,9 @@ export function UrlBar({
         type="button"
         onClick={onAnalyze}
         disabled={!canSubmit}
-        className="shrink-0 rounded-lg bg-accent px-5 py-2.5 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+        className={buttonClassName}
       >
-        {loading ? "Analyzing…" : "Analyze"}
+        {loading ? loadingLabel : "Analyze"}
       </button>
     </div>
   );

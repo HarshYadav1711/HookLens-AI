@@ -1,41 +1,205 @@
 # HookLens AI
 
-Compare two social videos (YouTube vs Instagram Reel) and explain, with evidence, why one performed better than the other.
+HookLens AI compares a **YouTube video (Video A)** and an **Instagram Reel (Video B)** using real metadata and transcripts, then answers creator questions with **numbered, timestamped citations**—not vibes.
+
+---
+
+## Overview
+
+Creators repurpose the same idea across platforms, but performance diverges. HookLens ingests both URLs, normalizes metrics and transcripts, indexes transcript chunks in a vector store, and runs a LangGraph pipeline that retrieves evidence before generating answers. The UI shows side-by-side video cards, a comparison summary, full transcripts, and a chat panel that streams responses with source cards for every answer.
+
+**Stack:** Next.js 15 (frontend) · FastAPI (API) · Qdrant (vectors) · Sentence Transformers (embeddings) · Ollama (generation) · LangGraph (orchestration)
+
+---
+
+## Problem
+
+Cross-platform comparison is usually manual: watch both videos, skim analytics in separate apps, guess why the hook worked on one channel and not the other. That process does not scale, is hard to defend in a team review, and breaks down when you need to cite *what was actually said* in the first three seconds.
+
+HookLens targets **evidence-backed creator intelligence**: every claim should trace to transcript text or extracted metadata, with explicit Video A vs Video B labeling.
+
+---
+
+## Product behavior
+
+1. **Paste two URLs** — public YouTube watch URL + Instagram Reel URL.
+2. **Analyze** — backend extracts metadata (views, likes, engagement rate, hashtags, etc.) and transcripts (YouTube captions API with Whisper fallback; Instagram via yt-dlp + Whisper when needed).
+3. **Index** — transcripts are chunked, embedded, and stored in Qdrant keyed by session.
+4. **Ask questions** — chat retrieves relevant chunks, assembles citations, and streams an answer that references `[1]`, `[2]`, etc.
+5. **Review sources** — each assistant message lists citation cards (platform, timestamp range, excerpt, relevance).
+
+Video labeling is fixed: **YouTube = A**, **Instagram = B**.
+
+---
 
 ## Architecture
 
 ```
-hooklens-ai/
-├── frontend/          # Next.js + TypeScript + Tailwind (UI)
-└── backend/           # FastAPI (API, ingest, RAG)
-        ├── ingestion/ # Video metadata & transcript extraction
-        ├── retrieval/ # Vector search & citations
-        ├── graph/     # LangGraph orchestration
-        ├── models/    # Domain models
-        ├── schemas/   # API contracts (Pydantic)
-        ├── services/  # Embeddings, storage, LLM clients
-        └── utils/     # Shared helpers
+┌─────────────────────────────────────────────────────────────────┐
+│  Next.js UI (localhost:3000)                                    │
+│  ingest → index → SSE chat + citation cards                       │
+└────────────────────────────┬────────────────────────────────────┘
+                             │ REST / SSE
+┌────────────────────────────▼────────────────────────────────────┐
+│  FastAPI (localhost:8000)                                        │
+│  ┌─────────────┐  ┌──────────────┐  ┌─────────────────────────┐ │
+│  │  ingestion  │  │  retrieval   │  │  LangGraph              │ │
+│  │  yt-dlp     │  │  chunk/embed │  │  retrieve → reason →    │ │
+│  │  transcripts│  │  Qdrant      │  │  cite → generate → mem  │ │
+│  └─────────────┘  └──────────────┘  └─────────────────────────┘ │
+└────────┬──────────────────┬──────────────────┬────────────────┘
+         │                  │                  │
+    session JSON      Qdrant :6333        Ollama :11434
+    data/sessions/    vectors             llama3.2 (default)
+    checkpoints.db
 ```
 
-Planned data flow: **ingest two URLs → chunk & embed transcripts → retrieve evidence → stream cited answers**.
+**Repo layout**
+
+```
+hooklens-ai/
+├── frontend/          # Next.js App Router, Tailwind
+├── backend/           # FastAPI app package
+│   └── app/
+│       ├── ingestion/ # URL ingest, normalize, transcripts
+│       ├── retrieval/ # chunking, embeddings, Qdrant, sessions
+│       ├── graph/     # LangGraph nodes + streaming engine
+│       ├── api/       # HTTP routes
+│       └── models/    # domain models
+├── docker-compose.yml # Qdrant only
+└── SUBMISSION.md      # reviewer-facing links (fill before submit)
+```
+
+**API surface (prefix `/api`)**
+
+| Endpoint | Purpose |
+|----------|---------|
+| `GET /health` | API + Ollama reachability |
+| `POST /ingest` | Extract both videos → `session_id` |
+| `POST /sessions/{id}/index` | Chunk + embed + upsert to Qdrant |
+| `POST /sessions/{id}/chat/stream` | SSE: `citations`, `token`, `done`, `error` |
+| `POST /sessions/{id}/retrieve` | Debug retrieval (optional) |
+
+---
+
+## Design decisions
+
+| Decision | Rationale |
+|----------|-----------|
+| **Session-scoped index** | Each analyze run gets a UUID session; demos stay isolated without multi-tenant auth. |
+| **Fingerprint skip re-index** | Re-running index on unchanged transcripts avoids redundant embedding cost. |
+| **Retrieve-before-generate** | LangGraph retrieves chunks and builds a numbered evidence block before Ollama sees the user question—reduces hallucinated quotes. |
+| **SSE over WebSockets** | One-directional token stream fits POST + fetch; simpler to proxy and debug. |
+| **Local Ollama default** | Keeps inference cost at zero for development; swappable for hosted models later. |
+| **Sentence Transformers locally** | `all-MiniLM-L6-v2` is small and fast on CPU; good enough for transcript chunk retrieval at prototype scale. |
+| **YouTube A / Instagram B** | Matches the product brief (long-form vs short-form Reel) and keeps prompts unambiguous. |
+
+---
+
+## Scaling and cost considerations
+
+| Layer | Today | At scale |
+|-------|-------|----------|
+| **Ingest** | Sequential yt-dlp + optional Whisper per video | Queue workers (Celery/ARQ), object storage for audio, GPU Whisper endpoints |
+| **Embeddings** | In-process Sentence Transformers | Managed embedding API or dedicated inference pods |
+| **Vectors** | Single Qdrant container | Sharded collection per tenant or namespace per workspace |
+| **LLM** | Local Ollama | Azure OpenAI / Foundry with token budgeting and caching |
+| **Sessions** | JSON files on disk | Postgres + blob store for transcripts |
+| **Chat** | SQLite LangGraph checkpoints | Durable checkpoint store (Postgres) |
+
+**Cost drivers for a live demo:** first ingest on a new video may download audio and run Whisper—CPU time dominates; chat adds one retrieval + one LLM call per question. Re-indexing is skipped when the transcript fingerprint is unchanged.
+
+---
+
+## Known limitations
+
+- **Public URLs only** — private, geo-blocked, or login-walled content may fail ingest.
+- **Instagram variability** — Reel metadata and audio availability depend on yt-dlp; warnings surface in the UI when partial.
+- **English-first transcripts** — Whisper fallback quality varies by audio; YouTube auto-captions may be imperfect.
+- **No auth or rate limits** — suitable for local demo, not production multi-user exposure.
+- **Single-machine dependencies** — Qdrant and Ollama must be reachable; no cloud fallback configured out of the box.
+- **Engagement rate** — computed as `(likes + comments) / views × 100` when views are present; not platform-native analytics.
+
+---
+
+## Future directions
+
+- Hosted deployment (Container Apps or similar) with secrets management and health-gated rollouts
+- Auth + workspace sessions with retained comparison history
+- Hook-specific retrieval (first N seconds bias) and visual frame captions
+- Batch compare mode (many URL pairs) with exportable reports
+- Model routing (fast vs deep analysis) and eval harness on golden Q&A pairs
+
+---
+
+## Environment variables
+
+Copy examples before running:
+
+```bash
+cp backend/.env.example backend/.env
+cp frontend/.env.example frontend/.env.local
+```
+
+### Frontend (`frontend/.env.local`)
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `NEXT_PUBLIC_API_URL` | Yes | Backend origin, e.g. `http://localhost:8000` (no trailing slash) |
+
+### Backend (`backend/.env`)
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `APP_NAME` | HookLens AI | Service title |
+| `DEBUG` | `false` | Verbose logging |
+| `API_HOST` | `0.0.0.0` | Uvicorn bind host |
+| `API_PORT` | `8000` | Uvicorn port |
+| `CORS_ORIGINS` | `http://localhost:3000,...` | Comma-separated frontend origins |
+| `DATA_DIR` | `./data` | Sessions, audio cache, checkpoints parent |
+| `WHISPER_MODEL_SIZE` | `base` | faster-whisper model (`tiny`–`large`) |
+| `QDRANT_URL` | `http://localhost:6333` | Qdrant HTTP API |
+| `QDRANT_COLLECTION` | `hooklens_chunks` | Vector collection name |
+| `EMBEDDING_MODEL` | `all-MiniLM-L6-v2` | Sentence Transformers model id |
+| `CHUNK_MAX_CHARS` | `480` | Max characters per transcript chunk |
+| `CHUNK_OVERLAP_CHARS` | `80` | Overlap between chunks |
+| `RETRIEVAL_TOP_K` | `8` | Chunks retrieved per chat turn |
+| `OLLAMA_BASE_URL` | `http://localhost:11434` | Ollama API base |
+| `OLLAMA_MODEL` | `llama3.2` | Model tag for generation |
+| `CHECKPOINT_DB_PATH` | `./data/checkpoints.db` | LangGraph SQLite checkpoint file |
+
+---
 
 ## Local development
 
-### Backend
+### Prerequisites
+
+- Python 3.11+
+- Node.js 20+
+- [Docker](https://docs.docker.com/get-docker/) (for Qdrant)
+- [Ollama](https://ollama.com/) with `llama3.2` pulled: `ollama pull llama3.2`
+
+### 1. Start Qdrant
+
+```bash
+docker compose up -d
+```
+
+### 2. Backend
 
 ```bash
 cd backend
 python -m venv .venv
 .venv\Scripts\activate          # Windows
-# source .venv/bin/activate   # macOS / Linux
+# source .venv/bin/activate     # macOS / Linux
 pip install -r requirements.txt
 cp .env.example .env
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-Health check: [http://localhost:8000/api/health](http://localhost:8000/api/health)
+Verify: [http://localhost:8000/api/health](http://localhost:8000/api/health) — `ollama` should be `true`.
 
-### Frontend
+### 3. Frontend
 
 ```bash
 cd frontend
@@ -44,14 +208,39 @@ cp .env.example .env.local
 npm run dev
 ```
 
-App: [http://localhost:3000](http://localhost:3000)
+Open [http://localhost:3000](http://localhost:3000).
 
-## Status
+---
 
-- **Ingestion** — `POST /api/ingest` → `session_id` + normalized metadata/transcripts (YouTube = **A**, Instagram = **B**).
-- **Indexing** — `POST /api/sessions/{session_id}/index` chunks, embeds (Sentence Transformers), stores in Qdrant. Re-index is skipped when the transcript fingerprint is unchanged.
-- **Retrieval** — `POST /api/sessions/{session_id}/retrieve` with `{ "query", "video_label"?, "video_id"? }` (query-only embedding at search time).
-- **Reasoning (LangGraph)** — `POST /api/sessions/{session_id}/chat/stream` (SSE) or `/chat` with `{ "message", "thread_id"? }`. Graph nodes: retrieve → reasoning → citation assembly → generate → memory update. Checkpointed threads for follow-ups.
-- **Frontend** — not implemented yet.
+## Loom demo checklist
 
-Start Qdrant: `docker run -p 6333:6333 qdrant/qdrant`
+Use a **fresh session** (restart backend or delete `backend/data/sessions/*.json` if you want a clean slate).
+
+1. `docker compose up -d` — Qdrant running on `:6333`
+2. `ollama serve` — Ollama running; `ollama list` shows `llama3.2`
+3. Backend + frontend running with `.env` files copied
+4. Health check passes: `curl http://localhost:8000/api/health`
+5. In the UI, paste **two real public URLs** you have tested before
+6. Click **Analyze** — wait for Extract → Index → Ready (first run may take 1–2 min)
+7. Confirm video cards, summary table, and transcripts render
+8. Ask 2–3 questions, e.g.:
+   - *What happens in the first 3 seconds on each video?*
+   - *Which hook is stronger and why?*
+   - *How does engagement differ given the metadata?*
+9. Show **Sources** under each answer with timestamps and excerpts
+10. Keep the browser tab visible; avoid switching URLs mid-demo
+
+---
+
+## Tests
+
+```bash
+cd backend
+pytest
+```
+
+---
+
+## Submission
+
+Fill in [SUBMISSION.md](./SUBMISSION.md) with your deployed URL, Loom link, and GitHub repo before sending to reviewers.

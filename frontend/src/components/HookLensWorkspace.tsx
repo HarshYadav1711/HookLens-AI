@@ -2,6 +2,7 @@
 
 import { useCallback, useRef, useState } from "react";
 import { ApiError, indexSession, ingestVideos, streamChat } from "@/lib/api";
+import { friendlyErrorMessage } from "@/lib/errors";
 import type {
   AnalysisPhase,
   ChatMessage,
@@ -19,6 +20,12 @@ function uid(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
+const STATUS_MESSAGES: Record<Exclude<AnalysisPhase, "idle" | "error" | "ready">, string> = {
+  extracting:
+    "Downloading metadata and transcripts from both platforms. First run can take 1–2 minutes.",
+  indexing: "Chunking transcripts and writing vectors to Qdrant for evidence retrieval.",
+};
+
 export function HookLensWorkspace() {
   const [youtubeUrl, setYoutubeUrl] = useState("");
   const [instagramUrl, setInstagramUrl] = useState("");
@@ -35,6 +42,12 @@ export function HookLensWorkspace() {
   const loading = phase === "extracting" || phase === "indexing";
   const ready = phase === "ready";
 
+  const loadingLabel =
+    phase === "extracting" ? "Extracting…" : phase === "indexing" ? "Indexing…" : "Analyze";
+
+  const statusMessage =
+    phase === "extracting" || phase === "indexing" ? STATUS_MESSAGES[phase] : null;
+
   const handleAnalyze = useCallback(async () => {
     setError(null);
     setMessages([]);
@@ -43,9 +56,12 @@ export function HookLensWorkspace() {
     setInstagram(null);
     setSessionId(null);
 
+    let extracted = false;
+
     try {
       setPhase("extracting");
       const ingest = await ingestVideos(youtubeUrl, instagramUrl);
+      extracted = true;
       setSessionId(ingest.session_id);
       setYoutube(ingest.youtube);
       setInstagram(ingest.instagram);
@@ -53,16 +69,18 @@ export function HookLensWorkspace() {
       setPhase("indexing");
       const index = await indexSession(ingest.session_id);
       setChunksIndexed(index.chunks_indexed);
-
       setPhase("ready");
     } catch (err) {
       setPhase("error");
-      if (err instanceof ApiError) {
-        setError(err.message);
-      } else if (err instanceof Error) {
-        setError(err.message);
+      const base = friendlyErrorMessage(err, "Analysis failed.");
+      if (extracted) {
+        setError(
+          `${base} Extraction finished but indexing did not. Ensure Qdrant is running (docker compose up) and retry Analyze.`,
+        );
       } else {
-        setError("Unexpected error during analysis.");
+        setError(
+          `${base} Use public YouTube and Instagram Reel URLs that yt-dlp can access.`,
+        );
       }
     }
   }, [youtubeUrl, instagramUrl]);
@@ -89,6 +107,17 @@ export function HookLensWorkspace() {
       setStreaming(true);
 
       let citations: Citation[] = [];
+      let finished = false;
+
+      const finishAssistant = (patch: Partial<ChatMessage>) => {
+        if (finished) return;
+        finished = true;
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === assistantId ? { ...m, ...patch, streaming: false } : m,
+          ),
+        );
+      };
 
       try {
         await streamChat(
@@ -113,50 +142,38 @@ export function HookLensWorkspace() {
               );
             },
             onDone: (content) => {
-              setMessages((prev) =>
-                prev.map((m) =>
-                  m.id === assistantId
-                    ? {
-                        ...m,
-                        content: content || m.content,
-                        citations,
-                        streaming: false,
-                      }
-                    : m,
-                ),
-              );
+              finishAssistant({
+                content: content || undefined,
+                citations,
+              });
             },
             onError: (message) => {
-              setMessages((prev) =>
-                prev.map((m) =>
-                  m.id === assistantId
-                    ? { ...m, streaming: false, error: message }
-                    : m,
-                ),
-              );
+              finishAssistant({ error: message, citations });
             },
           },
           controller.signal,
         );
       } catch (err) {
         if (err instanceof DOMException && err.name === "AbortError") return;
+        finishAssistant({
+          error: friendlyErrorMessage(err, "Chat failed"),
+          citations,
+        });
+      } finally {
+        setStreaming(false);
         setMessages((prev) =>
           prev.map((m) =>
-            m.id === assistantId
-              ? {
-                  ...m,
-                  streaming: false,
-                  error: err instanceof Error ? err.message : "Chat failed",
-                }
+            m.id === assistantId && m.streaming
+              ? { ...m, streaming: false, citations: m.citations ?? citations }
               : m,
           ),
         );
-      } finally {
-        setStreaming(false);
       }
     },
     [sessionId, ready],
   );
+
+  const showResults = youtube && instagram;
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -187,12 +204,18 @@ export function HookLensWorkspace() {
             onInstagramChange={setInstagramUrl}
             onAnalyze={handleAnalyze}
             loading={loading}
+            loadingLabel={loadingLabel}
             disabled={streaming}
           />
 
-          <ProgressBanner phase={phase} error={error} chunksIndexed={chunksIndexed} />
+          <ProgressBanner
+            phase={phase}
+            error={error}
+            chunksIndexed={chunksIndexed}
+            statusMessage={statusMessage}
+          />
 
-          {youtube && instagram && (
+          {showResults && (
             <div className="animate-fade-in space-y-5">
               <div className="grid gap-4 md:grid-cols-2">
                 <VideoCard video={youtube} label="A" />
@@ -217,11 +240,12 @@ export function HookLensWorkspace() {
             </div>
           )}
 
-          {phase === "idle" && !youtube && (
+          {phase === "idle" && !showResults && (
             <div className="rounded-xl border border-dashed border-[var(--border)] px-6 py-16 text-center">
               <p className="text-sm text-[var(--muted)] max-w-md mx-auto">
-                Paste a YouTube URL and an Instagram Reel URL above to extract
-                metadata, transcripts, and index evidence for conversational analysis.
+                Paste a public YouTube URL and Instagram Reel URL, then run Analyze.
+                HookLens extracts metadata and transcripts, indexes evidence, and answers
+                comparison questions with numbered citations.
               </p>
             </div>
           )}

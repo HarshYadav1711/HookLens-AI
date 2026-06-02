@@ -18,11 +18,6 @@ export function formatNumber(value: number | null | undefined): string {
   return value.toLocaleString();
 }
 
-export function formatPercent(value: number | null | undefined): string {
-  if (value == null) return "—";
-  return `${(value * 100).toFixed(2)}%`;
-}
-
 /** Backend stores engagement_rate as a percentage value (e.g. 6.0 = 6%). */
 export function formatEngagementRate(value: number | null | undefined): string {
   if (value == null) return "—";

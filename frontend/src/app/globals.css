@@ -18,11 +18,7 @@ body {
 }
 
 @layer utilities {
-  .scrollbar-thin {
-    scrollbar-width: thin;
-    scrollbar-color: var(--border) transparent;
-  }
-
+  /* WebKit: Chrome, Safari, Samsung Internet */
   .scrollbar-thin::-webkit-scrollbar {
     width: 6px;
     height: 6px;
@@ -31,6 +27,18 @@ body {
   .scrollbar-thin::-webkit-scrollbar-thumb {
     background: var(--border);
     border-radius: 3px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  /* Firefox */
+  @supports (scrollbar-width: thin) {
+    .scrollbar-thin {
+      scrollbar-width: thin;
+      scrollbar-color: var(--border) transparent;
+    }
   }
 
   .animate-fade-in {

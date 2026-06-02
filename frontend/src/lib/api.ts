@@ -1,3 +1,4 @@
+import { formatApiErrorDetail, isNetworkError } from "./errors";
 import { parseSSEChunk } from "./sse";
 import type {
   Citation,
@@ -7,6 +8,10 @@ import type {
 } from "./types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+
+export function getApiBaseUrl(): string {
+  return API_BASE;
+}
 
 class ApiError extends Error {
   constructor(
@@ -18,24 +23,37 @@ class ApiError extends Error {
   }
 }
 
+async function parseErrorResponse(res: Response): Promise<string> {
+  try {
+    const body = await res.json();
+    return formatApiErrorDetail(body.detail ?? body.message ?? res.statusText);
+  } catch {
+    return res.statusText || "Request failed";
+  }
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
-    ...init,
-    headers: {
-      "Content-Type": "application/json",
-      ...init?.headers,
-    },
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}${path}`, {
+      ...init,
+      headers: {
+        "Content-Type": "application/json",
+        ...init?.headers,
+      },
+    });
+  } catch (err) {
+    if (isNetworkError(err)) {
+      throw new ApiError(
+        "Cannot reach the API. Confirm the backend is running and NEXT_PUBLIC_API_URL is correct.",
+        0,
+      );
+    }
+    throw err;
+  }
 
   if (!res.ok) {
-    let detail = res.statusText;
-    try {
-      const body = await res.json();
-      detail = body.detail ?? body.message ?? detail;
-    } catch {
-      /* use statusText */
-    }
-    throw new ApiError(String(detail), res.status);
+    throw new ApiError(await parseErrorResponse(res), res.status);
   }
 
   return res.json() as Promise<T>;
@@ -73,22 +91,28 @@ export async function streamChat(
   callbacks: ChatStreamCallbacks,
   signal?: AbortSignal,
 ): Promise<void> {
-  const res = await fetch(`${API_BASE}/api/sessions/${sessionId}/chat/stream`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ message, thread_id: "default" }),
-    signal,
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}/api/sessions/${sessionId}/chat/stream`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message, thread_id: "default" }),
+      signal,
+    });
+  } catch (err) {
+    if (err instanceof DOMException && err.name === "AbortError") throw err;
+    if (isNetworkError(err)) {
+      callbacks.onError(
+        "Cannot reach the API. Confirm the backend is running and NEXT_PUBLIC_API_URL is correct.",
+      );
+      return;
+    }
+    callbacks.onError(err instanceof Error ? err.message : "Chat request failed");
+    return;
+  }
 
   if (!res.ok) {
-    let detail = res.statusText;
-    try {
-      const body = await res.json();
-      detail = body.detail ?? detail;
-    } catch {
-      /* use statusText */
-    }
-    callbacks.onError(String(detail));
+    callbacks.onError(await parseErrorResponse(res));
     return;
   }
 
@@ -100,25 +124,41 @@ export async function streamChat(
 
   const decoder = new TextDecoder();
   let buffer = "";
+  let receivedDone = false;
+  let receivedError = false;
 
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
 
-    buffer += decoder.decode(value, { stream: true });
-    const { events, remainder } = parseSSEChunk(buffer);
-    buffer = remainder;
+      buffer += decoder.decode(value, { stream: true });
+      const { events, remainder } = parseSSEChunk(buffer);
+      buffer = remainder;
 
-    for (const event of events) {
-      dispatchStreamEvent(event, callbacks);
+      for (const event of events) {
+        if (event.event === "done") receivedDone = true;
+        if (event.event === "error") receivedError = true;
+        dispatchStreamEvent(event, callbacks);
+      }
     }
+
+    if (buffer.trim()) {
+      const { events } = parseSSEChunk(buffer + "\n\n");
+      for (const event of events) {
+        if (event.event === "done") receivedDone = true;
+        if (event.event === "error") receivedError = true;
+        dispatchStreamEvent(event, callbacks);
+      }
+    }
+  } finally {
+    reader.releaseLock();
   }
 
-  if (buffer.trim()) {
-    const { events } = parseSSEChunk(buffer + "\n\n");
-    for (const event of events) {
-      dispatchStreamEvent(event, callbacks);
-    }
+  if (!receivedDone && !receivedError) {
+    callbacks.onError(
+      "Response ended before the assistant finished. Check Ollama is running (ollama serve).",
+    );
   }
 }
 

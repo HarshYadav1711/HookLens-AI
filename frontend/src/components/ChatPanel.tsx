@@ -104,7 +104,7 @@ export function ChatPanel({ messages, onSend, disabled, streaming }: ChatPanelPr
             disabled={disabled || streaming || !input.trim()}
             className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-40"
           >
-            Send
+            {streaming ? "Sending…" : "Send"}
           </button>
         </div>
       </form>
