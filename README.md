@@ -174,12 +174,42 @@ hooklens-ai/
 
 ## Known limitations
 
-- **Public URLs only** — private, geo-blocked, or login-walled content may fail ingest.
-- **Instagram variability** — Reel metadata and audio availability depend on yt-dlp; warnings surface in the UI when partial.
-- **English-first transcripts** — Whisper fallback quality varies by audio; YouTube auto-captions may be imperfect.
+HookLens is a **local, session-scoped comparison prototype**. It retrieves transcript text and surfaces citations; it does **not** replace platform analytics dashboards or guarantee quote-level accuracy when transcripts or retrieval are weak. The constraints below are intentional tradeoffs for the current build, not oversights.
+
+### Current implementation constraints
+
+These follow directly from how the repo is wired today:
+
 - **No auth or rate limits** — suitable for local demo, not production multi-user exposure.
 - **Single-machine dependencies** — Qdrant and Ollama must be reachable; no cloud fallback configured out of the box.
+- **English-first transcripts** — Whisper fallback quality varies by audio; YouTube auto-captions may be imperfect.
 - **Engagement rate** — computed as `(likes + comments) / views × 100` when views are present; not platform-native analytics.
+
+Ingest is **sequential** per video; chat sends **top-k transcript chunks** to the model (not the full recording in one context); sessions and LangGraph checkpoints persist under **`backend/data/`** on disk. Citations improve traceability but **do not eliminate** LLM mistakes—verify answers against **Sources** and the transcript panes.
+
+### Platform limitations
+
+These depend on YouTube, Instagram, and yt-dlp—not on HookLens business logic alone:
+
+- **Public URLs only** — private, geo-blocked, or login-walled content may fail ingest.
+- **Instagram variability** — Reel metadata and audio availability depend on yt-dlp; warnings surface in the UI when partial.
+
+Transcript and metric quality are bounded by what each platform exposes to extractors at ingest time (caption language, missing audio, stale view counts). HookLens does **not** call official YouTube Analytics or Instagram Insights APIs and cannot cite visual-only content that never appears in the transcript index.
+
+### Future production considerations
+
+If this architecture were hardened for shared or public use, the same limitations above would need explicit product and ops answers:
+
+| Gap today | Production implication |
+|-----------|-------------------------|
+| No auth or rate limits | Require authentication, per-tenant isolation, and abuse throttling before any external deployment. |
+| Single-machine dependencies | Operate Qdrant and the LLM as managed services with monitoring; `/api/health` today only checks API + Ollama, not Qdrant depth or model quality. |
+| Public URLs + yt-dlp ingest | Plan for ToS/compliance review, media retention policy, and breaker handling when extractors fail (no background retry queue in this repo). |
+| Instagram variability | Expect ongoing maintenance of extraction tooling; partial ingest paths need runbooks. |
+| English-first transcripts | Non-English or low-quality audio needs explicit locale/ASR strategy beyond the default Whisper/caption path. |
+| Derived engagement rate | Use platform-sourced analytics for decisions; treat HookLens metrics as illustrative side-by-side context only. |
+
+Not in scope of the current codebase: audit logging, encryption at rest for session JSON, multi-region HA, or spend guards on Whisper and LLM calls under concurrent users.
 
 ---
 
