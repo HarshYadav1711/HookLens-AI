@@ -9,6 +9,7 @@ YOUTUBE_PATTERNS = [
 ]
 
 INSTAGRAM_PATTERNS = [
+    re.compile(r"instagram\.com/reels/([A-Za-z0-9_-]+)"),
     re.compile(r"instagram\.com/reel/([A-Za-z0-9_-]+)"),
     re.compile(r"instagram\.com/p/([A-Za-z0-9_-]+)"),
 ]
@@ -43,8 +44,9 @@ def extract_youtube_id(url: str) -> str:
 
 
 def extract_instagram_id(url: str) -> str | None:
+    cleaned = url.strip()
     for pattern in INSTAGRAM_PATTERNS:
-        match = pattern.search(url)
+        match = pattern.search(cleaned)
         if match:
             return match.group(1)
     return None

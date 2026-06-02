@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routes import router
 from app.config import get_settings
-from app.graph.build import get_checkpointer
+from app.graph.build import start_graph_runtime, stop_graph_runtime
 
 settings = get_settings()
 
@@ -14,8 +14,11 @@ settings = get_settings()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     os.makedirs(settings.data_dir, exist_ok=True)
-    await get_checkpointer()
-    yield
+    await start_graph_runtime()
+    try:
+        yield
+    finally:
+        await stop_graph_runtime()
 
 
 app = FastAPI(

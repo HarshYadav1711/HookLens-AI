@@ -54,7 +54,7 @@ export function UrlBar({
           type="url"
           value={instagramUrl}
           onChange={(e) => onInstagramChange(e.target.value)}
-          placeholder="https://www.instagram.com/reel/..."
+          placeholder="https://www.instagram.com/reel/... or /reels/..."
           disabled={loading}
           autoComplete="off"
           className="w-full rounded-lg border border-[var(--border)] bg-[var(--card)] px-3 py-2.5 text-sm placeholder:text-[var(--muted)]/60 focus:outline-none focus:ring-2 focus:ring-accent/40 disabled:opacity-50"

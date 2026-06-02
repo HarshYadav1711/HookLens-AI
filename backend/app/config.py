@@ -25,6 +25,7 @@ class Settings(BaseSettings):
     ollama_base_url: str = "http://localhost:11434"
     ollama_model: str = "llama3.2"
     checkpoint_db_path: str = "./data/checkpoints.db"
+    ffmpeg_location: str | None = None
 
     @property
     def cors_origin_list(self) -> list[str]:

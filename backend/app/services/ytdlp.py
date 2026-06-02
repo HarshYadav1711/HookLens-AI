@@ -5,13 +5,24 @@ from typing import Any
 
 import yt_dlp
 
+from app.config import get_settings
 from app.utils.errors import MetadataExtractionError
+
+
+def _base_ytdlp_opts() -> dict:
+    opts: dict = {
+        "quiet": True,
+        "no_warnings": True,
+    }
+    ffmpeg_location = get_settings().ffmpeg_location
+    if ffmpeg_location:
+        opts["ffmpeg_location"] = ffmpeg_location
+    return opts
 
 
 def extract_metadata(url: str) -> dict[str, Any]:
     opts = {
-        "quiet": True,
-        "no_warnings": True,
+        **_base_ytdlp_opts(),
         "skip_download": True,
     }
     try:
@@ -29,8 +40,7 @@ def download_audio(url: str, out_dir: str) -> str:
     os.makedirs(out_dir, exist_ok=True)
     out_template = os.path.join(out_dir, "%(id)s.%(ext)s")
     opts = {
-        "quiet": True,
-        "no_warnings": True,
+        **_base_ytdlp_opts(),
         "format": "bestaudio/best",
         "outtmpl": out_template,
         "postprocessors": [

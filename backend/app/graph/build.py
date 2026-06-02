@@ -1,6 +1,7 @@
 """Compile the HookLens comparison LangGraph."""
 
 import os
+from contextlib import AsyncExitStack
 
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from langgraph.graph import END, StateGraph
@@ -16,17 +17,41 @@ from app.graph.nodes import (
 )
 from app.graph.state import ComparisonState
 
-_compiled_graph = None
+_exit_stack: AsyncExitStack | None = None
 _checkpointer: AsyncSqliteSaver | None = None
+_compiled_graph = None
+
+
+async def start_graph_runtime() -> None:
+    """Open the SQLite checkpointer and compile the graph for app lifetime."""
+    global _exit_stack, _checkpointer, _compiled_graph
+    if _checkpointer is not None:
+        return
+
+    settings = get_settings()
+    os.makedirs(settings.data_dir, exist_ok=True)
+
+    _exit_stack = AsyncExitStack()
+    _checkpointer = await _exit_stack.enter_async_context(
+        AsyncSqliteSaver.from_conn_string(settings.checkpoint_db_path)
+    )
+    await _checkpointer.setup()
+    _compiled_graph = build_comparison_graph().compile(checkpointer=_checkpointer)
+
+
+async def stop_graph_runtime() -> None:
+    """Release checkpointer resources on app shutdown."""
+    global _exit_stack, _checkpointer, _compiled_graph
+    if _exit_stack is not None:
+        await _exit_stack.aclose()
+    _exit_stack = None
+    _checkpointer = None
+    _compiled_graph = None
 
 
 async def get_checkpointer() -> AsyncSqliteSaver:
-    global _checkpointer
     if _checkpointer is None:
-        settings = get_settings()
-        os.makedirs(settings.data_dir, exist_ok=True)
-        _checkpointer = AsyncSqliteSaver.from_conn_string(settings.checkpoint_db_path)
-        await _checkpointer.setup()
+        raise RuntimeError("Graph runtime is not started")
     return _checkpointer
 
 
@@ -54,8 +79,6 @@ def build_comparison_graph():
 
 
 async def get_compiled_graph():
-    global _compiled_graph
     if _compiled_graph is None:
-        checkpointer = await get_checkpointer()
-        _compiled_graph = build_comparison_graph().compile(checkpointer=checkpointer)
+        raise RuntimeError("Graph runtime is not started")
     return _compiled_graph

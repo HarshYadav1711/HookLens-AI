@@ -16,3 +16,5 @@ def test_invalid_youtube_raises():
 
 def test_validate_instagram_reel():
     assert validate_instagram_url("https://www.instagram.com/reel/ABC123xyz/") == "ABC123xyz"
+    assert validate_instagram_url("https://www.instagram.com/reels/DW4yoD9EQP/") == "DW4yoD9EQP"
+    assert validate_instagram_url("https://www.instagram.com/reels/DW4yoD9EQP/ ") == "DW4yoD9EQP"

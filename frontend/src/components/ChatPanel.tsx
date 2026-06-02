@@ -50,7 +50,7 @@ export function ChatPanel({ messages, onSend, disabled, streaming }: ChatPanelPr
               </p>
               {!disabled && (
                 <ul className="mt-3 space-y-1 text-left text-xs text-[var(--muted)]/80">
-                  <li>· What happens in the first 3 seconds?</li>
+                  <li>· What happens in the first 5 seconds?</li>
                   <li>· Which video has a stronger hook?</li>
                   <li>· Compare call-to-action timing</li>
                 </ul>

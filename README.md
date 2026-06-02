@@ -14,7 +14,7 @@ Creators repurpose the same idea across platforms, but performance diverges. Hoo
 
 ## Problem
 
-Cross-platform comparison is usually manual: watch both videos, skim analytics in separate apps, guess why the hook worked on one channel and not the other. That process does not scale, is hard to defend in a team review, and breaks down when you need to cite *what was actually said* in the first three seconds.
+Cross-platform comparison is usually manual: watch both videos, skim analytics in separate apps, guess why the hook worked on one channel and not the other. That process does not scale, is hard to defend in a team review, and breaks down when you need to cite *what was actually said* in the first five seconds.
 
 HookLens targets **evidence-backed creator intelligence**: every claim should trace to transcript text or extracted metadata, with explicit Video A vs Video B labeling.
 
@@ -178,6 +178,7 @@ cp frontend/.env.example frontend/.env.local
 - Node.js 20+
 - [Docker](https://docs.docker.com/get-docker/) (for Qdrant)
 - [Ollama](https://ollama.com/) with `llama3.2` pulled: `ollama pull llama3.2`
+- [FFmpeg](https://ffmpeg.org/) on PATH (Instagram Reel audio + YouTube Whisper fallback). Windows: `winget install ffmpeg`
 
 ### 1. Start Qdrant
 
@@ -224,7 +225,7 @@ Use a **fresh session** (restart backend or delete `backend/data/sessions/*.json
 6. Click **Analyze** — wait for Extract → Index → Ready (first run may take 1–2 min)
 7. Confirm video cards, summary table, and transcripts render
 8. Ask 2–3 questions, e.g.:
-   - *What happens in the first 3 seconds on each video?*
+   - *What happens in the first 5 seconds on each video?*
    - *Which hook is stronger and why?*
    - *How does engagement differ given the metadata?*
 9. Show **Sources** under each answer with timestamps and excerpts
