@@ -1,10 +1,11 @@
 import asyncio
 import os
+import uuid
 
 from app.config import get_settings
 from app.ingestion.instagram import InstagramIngestStrategy
 from app.ingestion.youtube import YouTubeIngestStrategy
-from app.models.video import NormalizedVideo
+from app.retrieval.session_store import save_session
 from app.schemas.ingest import IngestResponse
 from app.utils.errors import IngestError, UnsupportedUrlError
 
@@ -19,12 +20,15 @@ class IngestOrchestrator:
     async def ingest_pair(self, youtube_url: str, instagram_url: str) -> IngestResponse:
         settings = get_settings()
         os.makedirs(settings.data_dir, exist_ok=True)
+        session_id = str(uuid.uuid4())
 
         youtube_task = asyncio.to_thread(self._youtube.ingest, youtube_url)
         instagram_task = asyncio.to_thread(self._instagram.ingest, instagram_url)
 
         youtube, instagram = await asyncio.gather(youtube_task, instagram_task)
-        return IngestResponse(youtube=youtube, instagram=instagram)
+        save_session(session_id, youtube, instagram)
+
+        return IngestResponse(session_id=session_id, youtube=youtube, instagram=instagram)
 
 
 _orchestrator: IngestOrchestrator | None = None

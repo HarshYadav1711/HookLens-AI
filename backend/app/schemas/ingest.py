@@ -17,5 +17,6 @@ class IngestRequest(BaseModel):
 
 
 class IngestResponse(BaseModel):
+    session_id: str
     youtube: NormalizedVideo
     instagram: NormalizedVideo

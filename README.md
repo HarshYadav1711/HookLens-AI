@@ -48,5 +48,9 @@ App: [http://localhost:3000](http://localhost:3000)
 
 ## Status
 
-- **Ingestion** — `POST /api/ingest` with `{ "youtube_url", "instagram_url" }` returns normalized metadata + transcripts for both videos.
-- **Retrieval / chat** — not implemented yet.
+- **Ingestion** — `POST /api/ingest` → `session_id` + normalized metadata/transcripts (YouTube = **A**, Instagram = **B**).
+- **Indexing** — `POST /api/sessions/{session_id}/index` chunks, embeds (Sentence Transformers), stores in Qdrant. Re-index is skipped when the transcript fingerprint is unchanged.
+- **Retrieval** — `POST /api/sessions/{session_id}/retrieve` with `{ "query", "video_label"?, "video_id"? }` (query-only embedding at search time).
+- **Chat / frontend** — not implemented yet.
+
+Start Qdrant: `docker run -p 6333:6333 qdrant/qdrant`

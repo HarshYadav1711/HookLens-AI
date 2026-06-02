@@ -15,6 +15,13 @@ class Settings(BaseSettings):
     data_dir: str = "./data"
     whisper_model_size: str = "base"
 
+    qdrant_url: str = "http://localhost:6333"
+    qdrant_collection: str = "hooklens_chunks"
+    embedding_model: str = "all-MiniLM-L6-v2"
+    chunk_max_chars: int = 480
+    chunk_overlap_chars: int = 80
+    retrieval_top_k: int = 8
+
     @property
     def cors_origin_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
