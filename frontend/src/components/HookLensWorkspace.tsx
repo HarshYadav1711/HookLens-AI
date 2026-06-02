@@ -2,7 +2,7 @@
 
 import { useCallback, useRef, useState } from "react";
 import { ApiError, indexSession, ingestVideos, streamChat } from "@/lib/api";
-import { friendlyErrorMessage } from "@/lib/errors";
+import { friendlyChatError, friendlyIngestError, friendlyIndexError } from "@/lib/errors";
 import type {
   AnalysisPhase,
   ChatMessage,
@@ -72,16 +72,7 @@ export function HookLensWorkspace() {
       setPhase("ready");
     } catch (err) {
       setPhase("error");
-      const base = friendlyErrorMessage(err, "Analysis failed.");
-      if (extracted) {
-        setError(
-          `${base} Extraction finished but indexing did not. Ensure Qdrant is running (docker compose up) and retry Analyze.`,
-        );
-      } else {
-        setError(
-          `${base} Use public YouTube and Instagram Reel URLs that yt-dlp can access.`,
-        );
-      }
+      setError(extracted ? friendlyIndexError(err) : friendlyIngestError(err));
     }
   }, [youtubeUrl, instagramUrl]);
 
@@ -156,7 +147,7 @@ export function HookLensWorkspace() {
       } catch (err) {
         if (err instanceof DOMException && err.name === "AbortError") return;
         finishAssistant({
-          error: friendlyErrorMessage(err, "Chat failed"),
+          error: friendlyChatError(err),
           citations,
         });
       } finally {

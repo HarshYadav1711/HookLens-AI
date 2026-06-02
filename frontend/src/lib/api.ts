@@ -1,4 +1,9 @@
-import { formatApiErrorDetail, isNetworkError } from "./errors";
+import {
+  formatApiErrorDetail,
+  friendlyChatError,
+  friendlyErrorMessage,
+  isNetworkError,
+} from "./errors";
 import { parseSSEChunk } from "./sse";
 import type {
   Citation,
@@ -44,10 +49,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     });
   } catch (err) {
     if (isNetworkError(err)) {
-      throw new ApiError(
-        "Cannot reach the API. Confirm the backend is running and NEXT_PUBLIC_API_URL is correct.",
-        0,
-      );
+      throw new ApiError(friendlyErrorMessage(err, "Cannot reach the API."), 0);
     }
     throw err;
   }
@@ -102,23 +104,21 @@ export async function streamChat(
   } catch (err) {
     if (err instanceof DOMException && err.name === "AbortError") throw err;
     if (isNetworkError(err)) {
-      callbacks.onError(
-        "Cannot reach the API. Confirm the backend is running and NEXT_PUBLIC_API_URL is correct.",
-      );
+      callbacks.onError(friendlyChatError(err));
       return;
     }
-    callbacks.onError(err instanceof Error ? err.message : "Chat request failed");
+    callbacks.onError(friendlyChatError(err instanceof Error ? err.message : "Chat request failed"));
     return;
   }
 
   if (!res.ok) {
-    callbacks.onError(await parseErrorResponse(res));
+    callbacks.onError(friendlyChatError(await parseErrorResponse(res)));
     return;
   }
 
   const reader = res.body?.getReader();
   if (!reader) {
-    callbacks.onError("No response stream available");
+    callbacks.onError(friendlyChatError("No response stream available"));
     return;
   }
 
@@ -157,7 +157,9 @@ export async function streamChat(
 
   if (!receivedDone && !receivedError) {
     callbacks.onError(
-      "Response ended before the assistant finished. Check Ollama is running (ollama serve).",
+      friendlyChatError(
+        "Response ended before the assistant finished. Check Ollama is running (ollama serve).",
+      ),
     );
   }
 }
@@ -179,7 +181,7 @@ function dispatchStreamEvent(event: StreamEvent, callbacks: ChatStreamCallbacks)
     }
     case "error": {
       const payload = event.data as { message?: string };
-      callbacks.onError(payload.message ?? "Stream error");
+      callbacks.onError(friendlyChatError(payload.message ?? "Stream error"));
       break;
     }
   }

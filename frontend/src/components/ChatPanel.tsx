@@ -96,7 +96,7 @@ export function ChatPanel({ messages, onSend, disabled, streaming }: ChatPanelPr
                 )}
               </p>
               {msg.error && (
-                <p className="mt-1 text-xs text-red-400">{msg.error}</p>
+                <p className="mt-1 whitespace-pre-wrap text-xs text-red-400">{msg.error}</p>
               )}
               {msg.role === "assistant" && (msg.citations?.length || !msg.streaming) && (
                 <CitationsList citations={msg.citations ?? []} />

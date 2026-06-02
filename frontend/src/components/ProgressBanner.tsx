@@ -43,7 +43,9 @@ export function ProgressBanner({
       {phase === "error" ? (
         <div className="space-y-1">
           <p className="text-sm font-medium text-red-400">Analysis could not complete</p>
-          <p className="text-sm text-red-400/90">{error ?? "Something went wrong."}</p>
+          <p className="whitespace-pre-wrap text-sm text-red-400/90">
+            {error ?? "Something went wrong."}
+          </p>
         </div>
       ) : (
         <div className="space-y-2">
