@@ -128,6 +128,8 @@ hooklens-ai/
 │       ├── api/       # HTTP routes
 │       └── models/    # domain models
 ├── docker-compose.yml # Qdrant only
+├── ARCHITECTURE.md    # system design + diagram (assets in docs/architecture/)
+├── ADR.md             # architecture decision records
 └── SUBMISSION.md      # reviewer-facing links (fill before submit)
 ```
 

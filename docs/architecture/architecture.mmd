@@ -1,0 +1,140 @@
+%%{init: {
+  "theme": "base",
+  "themeVariables": {
+    "background": "#ffffff",
+    "primaryColor": "#ffffff",
+    "primaryTextColor": "#1a1a1a",
+    "primaryBorderColor": "#374151",
+    "lineColor": "#374151",
+    "secondaryColor": "#f9fafb",
+    "tertiaryColor": "#ffffff",
+    "fontFamily": "ui-sans-serif, system-ui, sans-serif"
+  },
+  "flowchart": {
+    "curve": "linear",
+    "padding": 16
+  }
+}}%%
+
+flowchart TB
+  subgraph USER["User Layer"]
+    direction LR
+    CREATOR["Creator"]
+    REVIEWER["Reviewer"]
+  end
+
+  subgraph FE["Frontend Layer — Next.js 15"]
+    direction TB
+    URLBAR["URL Input Bar<br/><small>UrlBar.tsx</small>"]
+    WORKSPACE["Video Comparison Workspace<br/><small>HookLensWorkspace · VideoCard · AnalysisSummary · TranscriptView</small>"]
+    CHAT["Chat Panel<br/><small>ChatPanel.tsx · suggested questions</small>"]
+    CITES["Citation Panel<br/><small>CitationsList · Sources under replies</small>"]
+    URLBAR --> WORKSPACE
+    WORKSPACE --> CHAT
+    CHAT --> CITES
+  end
+
+  subgraph BE["Backend Layer — FastAPI"]
+    direction TB
+    REST["REST API<br/><small>/api/ingest · /index · /health</small>"]
+    SSE["SSE Streaming<br/><small>/api/sessions/{id}/chat/stream</small>"]
+  end
+
+  subgraph ING["Ingestion Layer"]
+    direction TB
+    ORCH["Ingest Orchestrator<br/><small>parallel asyncio.to_thread</small>"]
+    YT["YouTube URL Processing<br/><small>YouTubeIngestStrategy</small>"]
+    IG["Instagram Reel Processing<br/><small>InstagramIngestStrategy</small>"]
+    YTA["youtube-transcript-api"]
+    YTDLP["yt-dlp<br/><small>metadata + audio</small>"]
+    WHISP["Whisper Fallback<br/><small>faster-whisper</small>"]
+    ORCH --> YT
+    ORCH --> IG
+    YT --> YTA
+    YT --> YTDLP
+    YT --> WHISP
+    IG --> YTDLP
+    IG --> WHISP
+  end
+
+  subgraph PROC["Processing Layer"]
+    direction TB
+    META["Metadata Extraction<br/><small>normalize.py · yt-dlp raw</small>"]
+    ENG["Engagement Calculation<br/><small>engagement.py</small>"]
+    NORM["Transcript Normalization<br/><small>NormalizedVideo · segments</small>"]
+    CHUNK["Semantic Chunking<br/><small>chunking.py · overlap</small>"]
+    SESS["Session Store<br/><small>JSON · data/sessions/</small>"]
+    META --> NORM
+    ENG --> NORM
+    NORM --> CHUNK
+    CHUNK --> SESS
+  end
+
+  subgraph RET["Retrieval Layer"]
+    direction TB
+    ST["Sentence Transformers<br/><small>all-MiniLM-L6-v2</small>"]
+    QD["Qdrant Vector Database<br/><small>hooklens_chunks · Docker :6333</small>"]
+    SEARCH["Similarity Search<br/><small>cosine · top_k</small>"]
+    FILTER["Metadata Filtering<br/><small>session_id · optional video_label</small>"]
+    ST --> QD
+    QD --> SEARCH
+    SEARCH --> FILTER
+  end
+
+  subgraph INTEL["Intelligence Layer — LangGraph"]
+    direction TB
+    LG["LangGraph Workflow<br/><small>StateGraph · SQLite checkpoints</small>"]
+    RN["Retrieval Node"]
+    REASON["Reasoning Node<br/><small>comparison facts from metadata</small>"]
+    CITE["Citation Assembly Node"]
+    GEN["Generate Node<br/><small>streams tokens</small>"]
+    MEM["Conversation Memory Node<br/><small>memory_update · HumanMessage/AIMessage</small>"]
+    LG --> RN
+    RN --> REASON
+    REASON --> CITE
+    CITE --> GEN
+    GEN --> MEM
+    MEM -. "checkpoint read/write<br/>thread_id=default" .-> LG
+  end
+
+  subgraph MODEL["Model Layer"]
+    direction LR
+    OLL["Ollama<br/><small>:11434</small>"]
+    LLM["Llama 3.2<br/><small>OLLAMA_MODEL default</small>"]
+    OLL --> LLM
+  end
+
+  subgraph OUT["Output Layer — via UI + SSE"]
+    direction TB
+    STREAM["Streaming Answers"]
+    COMP["Video Comparison Analysis<br/><small>AnalysisSummary · metadata</small>"]
+    HOOK["Hook Analysis<br/><small>chat Q&A · e.g. first 5s — semantic retrieval</small>"]
+    REC["Improvement Suggestions<br/><small>chat Q&A · evidence-backed</small>"]
+    SRC["Source Citations<br/><small>numbered excerpts + timestamps</small>"]
+  end
+
+  CREATOR --> URLBAR
+  REVIEWER --> URLBAR
+
+  URLBAR -->|"POST /api/ingest"| REST
+  WORKSPACE -->|"POST /api/sessions/{id}/index"| REST
+  CHAT -->|"POST chat/stream"| SSE
+
+  REST --> ORCH
+  ORCH --> META
+  REST --> CHUNK
+  CHUNK --> ST
+  ST -->|"upsert vectors"| QD
+
+  SSE --> LG
+  RN --> FILTER
+  FILTER --> RN
+  GEN --> OLL
+
+  SSE --> STREAM
+  WORKSPACE --> COMP
+  CHAT --> HOOK
+  CHAT --> REC
+  CITES --> SRC
+
+  MEM -.-> CHAT
