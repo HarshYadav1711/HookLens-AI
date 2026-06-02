@@ -95,25 +95,12 @@ For each chat turn, the pipeline behaves as follows:
 
 ## Architecture
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│  Next.js UI (localhost:3000)                                    │
-│  ingest → index → SSE chat + citation cards                       │
-└────────────────────────────┬────────────────────────────────────┘
-                             │ REST / SSE
-┌────────────────────────────▼────────────────────────────────────┐
-│  FastAPI (localhost:8000)                                        │
-│  ┌─────────────┐  ┌──────────────┐  ┌─────────────────────────┐ │
-│  │  ingestion  │  │  retrieval   │  │  LangGraph              │ │
-│  │  yt-dlp     │  │  chunk/embed │  │  retrieve → reason →    │ │
-│  │  transcripts│  │  Qdrant      │  │  cite → generate → mem  │ │
-│  └─────────────┘  └──────────────┘  └─────────────────────────┘ │
-└────────┬──────────────────┬──────────────────┬────────────────┘
-         │                  │                  │
-    session JSON      Qdrant :6333        Ollama :11434
-    data/sessions/    vectors             llama3.2 (default)
-    checkpoints.db
-```
+![HookLens AI Architecture](./docs/architecture/architecture.png)
+
+Detailed system design documentation:
+
+- [ARCHITECTURE.md](./ARCHITECTURE.md)
+- [ADR.md](./ADR.md)
 
 **Repo layout**
 
