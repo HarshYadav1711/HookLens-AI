@@ -32,6 +32,67 @@ Video labeling is fixed: **YouTube = A**, **Instagram = B**.
 
 ---
 
+## Reviewer Quick Start
+
+Target time: **under 2 minutes** to first cited answer (after dependencies are running).
+
+1. **Dependencies** — `docker compose up -d` (Qdrant), `ollama serve` + `ollama pull llama3.2`, backend on `:8000`, frontend on `:3000`.
+2. **Health** — `GET http://localhost:8000/api/health` should return `"status": "ok"` and `"ollama": true`.
+3. **UI** — Open [http://localhost:3000](http://localhost:3000), paste a public YouTube URL (Video A) and Instagram Reel URL (Video B), click **Analyze**.
+4. **Wait for Ready** — Progress shows Extract → Index → Ready; first run may take 1–2 minutes.
+5. **Chat** — Use **Suggested Questions** in the chat panel or type your own; confirm streamed text and **Sources** cards under each reply.
+
+If Analyze fails, the banner shows what failed, a likely cause, and a next step (API, Qdrant, ingest, or index). Chat errors follow the same pattern.
+
+---
+
+## What To Test
+
+| Area | What to verify |
+|------|----------------|
+| **Ingest** | Both video cards populate with title, creator, metrics, and a non-empty transcript (or a clear ingest error). |
+| **Index** | Ready state reports chunks indexed; chat is enabled only after Index completes. |
+| **Retrieval + chat** | Answers stream via SSE; assistant text references Video A (YouTube) vs Video B (Instagram) explicitly. |
+| **Citations** | Each answer includes numbered source cards with platform, timestamp range, and excerpt text. |
+| **Grounding** | Quotes and timestamps in the answer align with cited excerpts—not invented lines. |
+| **Opening hooks** | Questions about the **first 5 seconds** return evidence from early transcript segments when speech exists in that window. |
+| **Explainability** | Chat panel **How answers are generated** matches behavior: retrieve → assemble evidence → cite → generate from evidence only. |
+
+Optional: stop Qdrant or Ollama and confirm error messages name the service and recovery command (`docker compose up -d`, `ollama serve`).
+
+---
+
+## Example Questions
+
+Use these to exercise retrieval, comparison, and citations (also available as one-click **Suggested Questions** in the UI):
+
+- *Compare the first 5 seconds of both videos.*
+- *Which hook is likely to retain attention better?*
+- *What evidence supports your conclusion?*
+- *Which transcript segments indicate stronger engagement?*
+- *Compare pacing and call-to-action strategy.*
+- *What happens in the first 5 seconds on each video?*
+- *How does engagement differ given the metadata?*
+
+Follow-up prompts (e.g. *What evidence supports your conclusion?*) are useful after an initial comparison answer.
+
+---
+
+## Expected Evidence Behavior
+
+For each chat turn, the pipeline behaves as follows:
+
+1. **Retrieve** — The query is embedded; up to `RETRIEVAL_TOP_K` transcript chunks (default 8) are pulled from Qdrant for the current session only.
+2. **Assemble** — Chunks become numbered evidence lines (`[1]`, `[2]`, …) with Video A/B labels and `start_time`–`end_time` ranges.
+3. **Stream** — SSE events: `citations` (source list), then `token` (answer text), then `done`. The model prompt includes only comparison metadata plus that evidence block.
+4. **Display** — The UI renders **Sources** under the assistant message; bracket numbers in the answer should match citation indices.
+
+**Pass criteria for reviewers:** every factual transcript claim is backed by at least one cited chunk; timestamps and excerpts are copy-consistent with the transcript view; if evidence is thin, the answer states insufficient support rather than inventing quotes.
+
+**Not expected:** platform-native analytics beyond ingested metadata, visual/frame analysis, or answers without a completed Analyze + Index for the session.
+
+---
+
 ## Architecture
 
 ```
