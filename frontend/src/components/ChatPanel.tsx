@@ -11,6 +11,14 @@ interface ChatPanelProps {
   streaming: boolean;
 }
 
+const SUGGESTED_QUESTIONS = [
+  "Compare the first 5 seconds of both videos.",
+  "Which hook is likely to retain attention better?",
+  "What evidence supports your conclusion?",
+  "Which transcript segments indicate stronger engagement?",
+  "Compare pacing and call-to-action strategy.",
+] as const;
+
 export function ChatPanel({ messages, onSend, disabled, streaming }: ChatPanelProps) {
   const [input, setInput] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -41,20 +49,30 @@ export function ChatPanel({ messages, onSend, disabled, streaming }: ChatPanelPr
 
       <div ref={listRef} className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-thin">
         {messages.length === 0 && (
-          <div className="flex h-full min-h-[200px] items-center justify-center text-center">
-            <div className="max-w-xs">
-              <p className="text-sm text-[var(--muted)]">
-                {disabled
-                  ? "Run analysis first, then ask about hooks, pacing, or performance."
-                  : "Compare hooks, openings, or engagement drivers between both videos."}
-              </p>
-              {!disabled && (
-                <ul className="mt-3 space-y-1 text-left text-xs text-[var(--muted)]/80">
-                  <li>· What happens in the first 5 seconds?</li>
-                  <li>· Which video has a stronger hook?</li>
-                  <li>· Compare call-to-action timing</li>
-                </ul>
-              )}
+          <div className="flex h-full min-h-[200px] flex-col justify-center">
+            <p className="text-sm text-[var(--muted)]">
+              {disabled
+                ? "Run analysis first, then ask about hooks, pacing, or performance."
+                : "Compare hooks, openings, or engagement drivers between both videos."}
+            </p>
+            <div className="mt-4">
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">
+                Suggested Questions
+              </h3>
+              <ul className="mt-2 space-y-1.5">
+                {SUGGESTED_QUESTIONS.map((question) => (
+                  <li key={question}>
+                    <button
+                      type="button"
+                      onClick={() => onSend(question)}
+                      disabled={disabled || streaming}
+                      className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-left text-xs leading-snug text-[var(--text)]/90 transition-colors hover:border-accent/40 hover:bg-accent/5 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-[var(--border)] disabled:hover:bg-[var(--bg)]"
+                    >
+                      {question}
+                    </button>
+                  </li>
+                ))}
+              </ul>
             </div>
           </div>
         )}
