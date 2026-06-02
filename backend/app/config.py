@@ -12,6 +12,9 @@ class Settings(BaseSettings):
     api_port: int = 8000
     cors_origins: str = "http://localhost:3000,http://127.0.0.1:3000"
 
+    data_dir: str = "./data"
+    whisper_model_size: str = "base"
+
     @property
     def cors_origin_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]

@@ -48,4 +48,5 @@ App: [http://localhost:3000](http://localhost:3000)
 
 ## Status
 
-Scaffold only — ingestion, retrieval, and chat are not implemented yet.
+- **Ingestion** — `POST /api/ingest` with `{ "youtube_url", "instagram_url" }` returns normalized metadata + transcripts for both videos.
+- **Retrieval / chat** — not implemented yet.
