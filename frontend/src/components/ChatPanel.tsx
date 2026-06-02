@@ -107,6 +107,18 @@ export function ChatPanel({ messages, onSend, disabled, streaming }: ChatPanelPr
         <div ref={bottomRef} />
       </div>
 
+      <div className="border-t border-[var(--border)] px-4 py-2.5">
+        <h3 className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">
+          How answers are generated
+        </h3>
+        <ol className="mt-1.5 list-decimal space-y-0.5 pl-4 text-xs leading-relaxed text-[var(--muted)]/90">
+          <li>Relevant transcript chunks are retrieved from your indexed session.</li>
+          <li>Evidence is assembled into numbered excerpts for Video A and Video B.</li>
+          <li>Citations are attached to each answer with platform and timestamps.</li>
+          <li>The model answers only from that retrieved evidence—not from guesswork.</li>
+        </ol>
+      </div>
+
       <form onSubmit={handleSubmit} className="border-t border-[var(--border)] p-3">
         <div className="flex gap-2">
           <input
