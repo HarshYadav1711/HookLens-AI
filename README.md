@@ -116,8 +116,7 @@ hooklens-ai/
 │       └── models/    # domain models
 ├── docker-compose.yml # Qdrant only
 ├── ARCHITECTURE.md    # system design + diagram (assets in docs/architecture/)
-├── ADR.md             # architecture decision records
-└── SUBMISSION.md      # reviewer-facing links (fill before submit)
+└── ADR.md             # architecture decision records
 ```
 
 **API surface (prefix `/api`)**
