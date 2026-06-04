@@ -293,24 +293,6 @@ Open [http://localhost:3000](http://localhost:3000).
 
 ---
 
-## Loom demo checklist
-
-Use a **fresh session** (restart backend or delete `backend/data/sessions/*.json` if you want a clean slate).
-
-1. `docker compose up -d` — Qdrant running on `:6333`
-2. `ollama serve` — Ollama running; `ollama list` shows `llama3.2`
-3. Backend + frontend running with `.env` files copied
-4. Health check passes: `curl http://localhost:8000/api/health`
-5. In the UI, paste **two real public URLs** you have tested before
-6. Click **Analyze** — wait for Extract → Index → Ready (first run may take 1–2 min)
-7. Confirm video cards, summary table, and transcripts render
-8. Ask 2–3 questions, e.g.:
-   - *What happens in the first 5 seconds on each video?*
-   - *Which hook is stronger and why?*
-   - *How does engagement differ given the metadata?*
-9. Show **Sources** under each answer with timestamps and excerpts
-10. Keep the browser tab visible; avoid switching URLs mid-demo
-
 ---
 
 ## Tests
@@ -321,7 +303,3 @@ pytest
 ```
 
 ---
-
-## Submission
-
-Fill in [SUBMISSION.md](./SUBMISSION.md) with your deployed URL, Loom link, and GitHub repo before sending to reviewers.
